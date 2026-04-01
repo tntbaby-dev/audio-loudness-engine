@@ -1,8 +1,8 @@
-# Audio Loudness Engine
+# Audio Loudness Intelligence Engine
 
-An experimental audio analysis and normalization engine built in Python.
+An engine that analyzes audio datasets for loudness (LUFS), dynamic range, and peak levels, then applies **peak-safe gain adjustments** to normalize audio without clipping.
 
-The system analyzes audio files, extracts loudness-related DSP features, and applies safe gain adjustments to normalize audio without clipping.
+Designed to maintain **consistent loudness** across multiple audio files.
 
 ## Features
 
@@ -10,10 +10,9 @@ The system analyzes audio files, extracts loudness-related DSP features, and app
 - True peak measurement
 - Loudness range (LRA)
 - RMS level analysis
-- Crest factor calculation
-- Zero-crossing rate
-- Safe gain prediction
-- Intelligent normalization
+- Intelligent gain recommendations with headroom protection
+- Batch-processing via CLI
+- Dataset-level analysis (average, min, max loudness)
 
 ## Project Structure
 
@@ -37,8 +36,11 @@ Audio → Feature Extraction → Dataset → Gain Prediction → Normalization
 “integrated_lufs”: -29.408,
 “true_peak_dbtp”: -10.34,
 “rms_dbfs”: -32.07,
-“crest_factor_db”: 19.88,
-“zero_crossing_rate”: 0.422
+“recommended_gain_db”: 12.73,
+“projected_lufs”: -21.05,
+"prjected_peak": -6.0
+"headroom_ok": true,
+"dynamics_warning": false
 }
 
 ## Future Work
@@ -50,10 +52,14 @@ Audio → Feature Extraction → Dataset → Gain Prediction → Normalization
 
 ## Requirements
 
-Install dependencies:
+Install dependencies: pip install pandas tqdm pydub soundfile numpy scipy pyloudnorm
+
+brew install ffmpeg libsndfile
+
 
 pip install -r requirements.txt
 
-## Author
+## License
+TNT BABY PRODUCTIONS LTD
 
-Built as part of an exploration into audio DSP and AI-driven loudness normalization.
+
