@@ -2,7 +2,7 @@
 
 An engine that analyzes audio datasets for loudness (LUFS), dynamic range, and peak levels, then applies **peak-safe gain adjustments** to normalize audio without clipping.
 
-Designed to maintain **consistent loudness** across multiple audio files.
+Designed to maintain **consistent loudness** across multiple audio files, and meet industry standard compliance.
 
 ## Features
 
@@ -12,6 +12,7 @@ Designed to maintain **consistent loudness** across multiple audio files.
 - RMS level analysis
 - Intelligent gain recommendations with headroom protection
 - Batch-processing via CLI
+- Industry standard compliance (1.0 dBTP ceiling)
 - Dataset-level analysis (average, min, max loudness)
 
 ## Project Structure
