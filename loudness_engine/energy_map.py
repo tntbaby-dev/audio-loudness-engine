@@ -333,6 +333,20 @@ def analyze_energy_map(data, sample_rate):
                 * frequency_resolution_hz
             )
 
+            if (
+                mid_band_energy > 0
+                and side_band_energy > 0
+            ):
+                side_to_mid_ratio_db = (
+                    10.0
+                    * np.log10(
+                        side_band_energy
+                        / mid_band_energy
+                    )
+                )
+            else:
+                side_to_mid_ratio_db = None
+
             stereo_bands[band_name] = {
                 "left_energy": left_band_energy,
                 "right_energy": right_band_energy,
@@ -340,6 +354,7 @@ def analyze_energy_map(data, sample_rate):
                 "balance": stereo_band_balance,
                 "mid_energy": mid_band_energy,
                 "side_energy": side_band_energy,
+                "side_to_mid_ratio_db": side_to_mid_ratio_db,
             }
         # ---------------------------------------------
         # Total band energy
