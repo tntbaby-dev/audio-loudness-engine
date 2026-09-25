@@ -3,7 +3,7 @@ import pyloudnorm as pyln
 
 from .true_peak import measure_true_peak
 from .energy_map import analyze_energy_map
-
+from loudness_engine.dynamics import analyze_dynamics
 
 def analyze_file(file_path):
     """
@@ -44,6 +44,11 @@ def analyze_file(file_path):
         sample_rate
     )
 
+    dynamics = analyze_dynamics(
+        data,
+        sample_rate
+    )
+
     return {
         "file_path": str(file_path),
         "sample_rate": int(sample_rate),
@@ -53,4 +58,5 @@ def analyze_file(file_path):
         "loudness_range": round(loudness_range, 3),
         "true_peak_db": round(true_peak_db, 3),
         "energy_map": energy_map,
+        "dynamics": dynamics,
     }
