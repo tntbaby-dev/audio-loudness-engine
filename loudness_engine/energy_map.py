@@ -67,7 +67,13 @@ def analyze_energy_map(data, sample_rate):
 
             fft_result = np.fft.rfft(windowed)
 
-            power = np.abs(fft_result) ** 2
+            power = (
+    np.abs(fft_result) ** 2
+    / (
+        sample_rate
+        * np.sum(window ** 2)
+    )
+)
 
             frames.append(power)
 
