@@ -48,6 +48,10 @@ def analyze_energy_map(data, sample_rate):
 
     window = np.hanning(n_fft)
 
+    # =========================================================
+    # 1. CHANNEL SPECTRAL ANALYSIS
+    # =========================================================
+
     channel_spectra = []
 
     for channel_index in range(channels):
@@ -61,6 +65,7 @@ def analyze_energy_map(data, sample_rate):
             samples - n_fft + 1,
             hop_size
         ):
+
             frame = channel[start:start + n_fft]
 
             windowed = frame * window
@@ -76,8 +81,6 @@ def analyze_energy_map(data, sample_rate):
             )
 
             # Convert to one-sided PSD.
-            # Interior bins represent both positive and
-            # negative frequency components.
             if n_fft % 2 == 0:
                 power[1:-1] *= 2.0
             else:
@@ -92,34 +95,30 @@ def analyze_energy_map(data, sample_rate):
 
         channel_spectra.append(channel_power)
 
-    # Preserve every channel.
     channel_spectra = np.asarray(channel_spectra)
+
+    # =========================================================
+    # 2. FREQUENCY AXIS
+    # =========================================================
 
     frequencies = np.fft.rfftfreq(
         n_fft,
         d=1.0 / sample_rate
     )
 
-    # ---------------------------------------------------------
-    # TRUE MID/SIDE SPECTRAL ANALYSIS
-    # ---------------------------------------------------------
-    #
-    # M/S must be calculated from the complex FFT signals,
-    # before converting them to power.
-    #
-    # M = (L + R) / sqrt(2)
-    # S = (L - R) / sqrt(2)
-    #
-    # This is an orthonormal transform and preserves total
-    # stereo energy.
+    # =========================================================
+    # 3. TRUE MID / SIDE + CROSS-SPECTRUM ANALYSIS
+    # =========================================================
 
     mid_power = None
     side_power = None
+    cross_spectrum = None
 
     if channels >= 2:
 
         mid_frames = []
         side_frames = []
+        cross_frames = []
 
         left_channel = data[:, 0]
         right_channel = data[:, 1]
@@ -143,6 +142,10 @@ def analyze_energy_map(data, sample_rate):
             left_fft = np.fft.rfft(left_frame)
             right_fft = np.fft.rfft(right_frame)
 
+            # -------------------------------------------------
+            # TRUE MID / SIDE
+            # -------------------------------------------------
+
             mid_fft = (
                 left_fft + right_fft
             ) / np.sqrt(2.0)
@@ -150,6 +153,25 @@ def analyze_energy_map(data, sample_rate):
             side_fft = (
                 left_fft - right_fft
             ) / np.sqrt(2.0)
+
+            # -------------------------------------------------
+            # CROSS-SPECTRUM
+            #
+            # Phase difference:
+            # angle(L * conjugate(R))
+            #
+            # This gives:
+            # phase(L) - phase(R)
+            # -------------------------------------------------
+
+            cross_frame = (
+                left_fft
+                * np.conj(right_fft)
+            )
+
+            # -------------------------------------------------
+            # MID / SIDE POWER
+            # -------------------------------------------------
 
             mid_frame_power = (
                 np.abs(mid_fft) ** 2
@@ -168,6 +190,7 @@ def analyze_energy_map(data, sample_rate):
             )
 
             # Convert to one-sided PSD.
+
             if n_fft % 2 == 0:
 
                 mid_frame_power[1:-1] *= 2.0
@@ -178,8 +201,17 @@ def analyze_energy_map(data, sample_rate):
                 mid_frame_power[1:] *= 2.0
                 side_frame_power[1:] *= 2.0
 
+            # -------------------------------------------------
+            # STORE FRAME RESULTS
+            # -------------------------------------------------
+
             mid_frames.append(mid_frame_power)
             side_frames.append(side_frame_power)
+            cross_frames.append(cross_frame)
+
+        # -----------------------------------------------------
+        # AVERAGE ACROSS ALL FRAMES
+        # -----------------------------------------------------
 
         mid_power = np.mean(
             np.asarray(mid_frames),
@@ -191,7 +223,15 @@ def analyze_energy_map(data, sample_rate):
             axis=0
         )
 
-    # Keep the audible analysis range.
+        cross_spectrum = np.mean(
+            np.asarray(cross_frames),
+            axis=0
+        )
+
+    # =========================================================
+    # 4. AUDIBLE FREQUENCY RANGE
+    # =========================================================
+
     frequency_mask = (
         (frequencies >= 20) &
         (frequencies <= 20000)
@@ -205,11 +245,15 @@ def analyze_energy_map(data, sample_rate):
     ]
 
     if channels >= 2:
+
         mid_power = mid_power[frequency_mask]
         side_power = side_power[frequency_mask]
+        cross_spectrum = cross_spectrum[frequency_mask]
 
-    # Preserve channel-specific spectral information
-    # after applying the same frequency mask.
+    # =========================================================
+    # 5. LEFT / RIGHT POWER
+    # =========================================================
+
     left_power = (
         channel_spectra[0]
         if channels >= 1
@@ -222,41 +266,87 @@ def analyze_energy_map(data, sample_rate):
         else None
     )
 
-    # ---------------------------------------------------------
-    # TOTAL STEREO / MULTICHANNEL POWER
-    # ---------------------------------------------------------
+    # =========================================================
+    # 6. TOTAL MULTICHANNEL POWER
+    # =========================================================
 
     # IMPORTANT:
     # No division by channel count.
+    #
+    # Total stereo power = Left power + Right power.
+
     total_power = np.sum(
         channel_spectra,
         axis=0
     )
 
-    frequency_resolution_hz = sample_rate / n_fft
+    frequency_resolution_hz = (
+        sample_rate / n_fft
+    )
 
     total_energy = (
         float(np.sum(total_power))
         * frequency_resolution_hz
     )
 
-    # ---------------------------------------------------------
-    # STEREO SPECTRUM ANALYSIS
-    # ---------------------------------------------------------
+    # =========================================================
+    # 7. STEREO SPECTRUM ANALYSIS
+    # =========================================================
 
     stereo_analysis = {}
 
     if channels >= 2:
 
-        stereo_sum = left_power + right_power
+        # -----------------------------------------------------
+        # PHASE DIFFERENCE
+        # -----------------------------------------------------
+
+        phase_difference = np.angle(
+            cross_spectrum
+        )
+
+        # -----------------------------------------------------
+        # MAGNITUDE-SQUARED COHERENCE
+        # -----------------------------------------------------
+
+        cross_magnitude_squared = (
+            np.abs(cross_spectrum) ** 2
+        )
+
+        coherence = (
+            cross_magnitude_squared
+            / np.maximum(
+                left_power * right_power,
+                1e-30
+            )
+        )
+
+        coherence = np.clip(
+            coherence,
+            0.0,
+            1.0
+        )
+
+        # -----------------------------------------------------
+        # L/R BALANCE
+        # -----------------------------------------------------
+
+        stereo_sum = (
+            left_power
+            + right_power
+        )
 
         stereo_difference = np.abs(
-            left_power - right_power
+            left_power
+            - right_power
         )
 
         stereo_balance = (
             (left_power - right_power)
-            / np.maximum(stereo_sum, 1e-20)
+            / np.maximum(
+                stereo_sum,
+                1e-20
+            )
         )
 
         stereo_analysis = {
@@ -266,11 +356,15 @@ def analyze_energy_map(data, sample_rate):
             "balance": stereo_balance.tolist(),
             "mid_power": mid_power.tolist(),
             "side_power": side_power.tolist(),
+            "phase_difference_rad": (
+                phase_difference.tolist()
+            ),
+            "coherence": coherence.tolist(),
         }
 
-    # ---------------------------------------------------------
-    # FREQUENCY BANDS
-    # ---------------------------------------------------------
+    # =========================================================
+    # 8. FREQUENCY BANDS
+    # =========================================================
 
     bands = {}
     stereo_bands = {}
@@ -284,9 +378,9 @@ def analyze_energy_map(data, sample_rate):
 
         band_power = total_power[band_mask]
 
-        # ---------------------------------------------
-        # Stereo energy inside this frequency band
-        # ---------------------------------------------
+        # -----------------------------------------------------
+        # STEREO ENERGY INSIDE BAND
+        # -----------------------------------------------------
 
         if (
             channels >= 2
@@ -319,9 +413,9 @@ def analyze_energy_map(data, sample_rate):
                 else 0.0
             )
 
-                   # ---------------------------------------------
-            # Mid/Side energy inside this frequency band
-            # ---------------------------------------------
+            # -------------------------------------------------
+            # MID / SIDE ENERGY INSIDE BAND
+            # -------------------------------------------------
 
             mid_band_energy = float(
                 np.sum(mid_power[band_mask])
@@ -333,10 +427,15 @@ def analyze_energy_map(data, sample_rate):
                 * frequency_resolution_hz
             )
 
+            # -------------------------------------------------
+            # SIDE / MID RATIO
+            # -------------------------------------------------
+
             if (
                 mid_band_energy > 0
                 and side_band_energy > 0
             ):
+
                 side_to_mid_ratio_db = (
                     10.0
                     * np.log10(
@@ -344,7 +443,9 @@ def analyze_energy_map(data, sample_rate):
                         / mid_band_energy
                     )
                 )
+
             else:
+
                 side_to_mid_ratio_db = None
 
             stereo_bands[band_name] = {
@@ -354,21 +455,27 @@ def analyze_energy_map(data, sample_rate):
                 "balance": stereo_band_balance,
                 "mid_energy": mid_band_energy,
                 "side_energy": side_band_energy,
-                "side_to_mid_ratio_db": side_to_mid_ratio_db,
+                "side_to_mid_ratio_db": (
+                    side_to_mid_ratio_db
+                ),
             }
-        # ---------------------------------------------
-        # Total band energy
-        # ---------------------------------------------
+
+        # -----------------------------------------------------
+        # TOTAL BAND ENERGY
+        # -----------------------------------------------------
 
         band_energy = float(
             np.sum(band_power)
             * frequency_resolution_hz
         )
 
-        bandwidth_hz = high_hz - low_hz
+        bandwidth_hz = (
+            high_hz - low_hz
+        )
 
         energy_percent = (
-            (band_energy / total_energy) * 100.0
+            (band_energy / total_energy)
+            * 100.0
             if total_energy > 0
             else 0.0
         )
@@ -388,13 +495,15 @@ def analyze_energy_map(data, sample_rate):
             "energy_density": energy_density,
         }
 
-    # ---------------------------------------------------------
-    # CHANNEL SPECTRAL OUTPUT
-    # ---------------------------------------------------------
+    # =========================================================
+    # 9. CHANNEL SPECTRAL OUTPUT
+    # =========================================================
 
     channel_power_output = {}
 
-    for channel_index, power in enumerate(channel_spectra):
+    for channel_index, power in enumerate(
+        channel_spectra
+    ):
 
         channel_name = (
             "left"
@@ -409,25 +518,31 @@ def analyze_energy_map(data, sample_rate):
             "power_db": (
                 10.0
                 * np.log10(
-                    np.maximum(power, 1e-20)
+                    np.maximum(
+                        power,
+                        1e-20
+                    )
                 )
             ).tolist(),
         }
 
-    # ---------------------------------------------------------
-    # TOTAL POWER IN dB
-    # ---------------------------------------------------------
+    # =========================================================
+    # 10. TOTAL POWER IN dB
+    # =========================================================
 
     total_power_db = (
         10.0
         * np.log10(
-            np.maximum(total_power, 1e-20)
+            np.maximum(
+                total_power,
+                1e-20
+            )
         )
     )
 
-    # ---------------------------------------------------------
-    # FINAL RESULT
-    # ---------------------------------------------------------
+    # =========================================================
+    # 11. FINAL RESULT
+    # =========================================================
 
     result = {
         "channels": channels,
@@ -440,7 +555,9 @@ def analyze_energy_map(data, sample_rate):
             ),
             "frequencies_hz": frequencies.tolist(),
             "total_power": total_power.tolist(),
-            "total_power_db": total_power_db.tolist(),
+            "total_power_db": (
+                total_power_db.tolist()
+            ),
             "channels": channel_power_output,
         },
 
