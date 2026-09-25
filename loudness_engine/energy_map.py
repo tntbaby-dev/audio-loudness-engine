@@ -240,7 +240,7 @@ def analyze_energy_map(data, sample_rate):
         * frequency_resolution_hz
     )
 
-       # ---------------------------------------------------------
+    # ---------------------------------------------------------
     # STEREO SPECTRUM ANALYSIS
     # ---------------------------------------------------------
 
@@ -319,13 +319,28 @@ def analyze_energy_map(data, sample_rate):
                 else 0.0
             )
 
+                   # ---------------------------------------------
+            # Mid/Side energy inside this frequency band
+            # ---------------------------------------------
+
+            mid_band_energy = float(
+                np.sum(mid_power[band_mask])
+                * frequency_resolution_hz
+            )
+
+            side_band_energy = float(
+                np.sum(side_power[band_mask])
+                * frequency_resolution_hz
+            )
+
             stereo_bands[band_name] = {
                 "left_energy": left_band_energy,
                 "right_energy": right_band_energy,
                 "total_energy": stereo_band_total,
                 "balance": stereo_band_balance,
+                "mid_energy": mid_band_energy,
+                "side_energy": side_band_energy,
             }
-
         # ---------------------------------------------
         # Total band energy
         # ---------------------------------------------
