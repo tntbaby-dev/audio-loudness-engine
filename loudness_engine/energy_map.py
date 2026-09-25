@@ -37,8 +37,8 @@ def analyze_energy_map(data, sample_rate):
     if channels < 1:
         raise ValueError("Audio contains no channels.")
 
-    n_fft = 4096
-    hop_size = 1024
+    n_fft = 16384
+    hop_size = 4096
 
     if samples < n_fft:
         raise ValueError(
@@ -68,12 +68,21 @@ def analyze_energy_map(data, sample_rate):
             fft_result = np.fft.rfft(windowed)
 
             power = (
-    np.abs(fft_result) ** 2
-    / (
-        sample_rate
-        * np.sum(window ** 2)
-    )
-)
+                np.abs(fft_result) ** 2
+                / (
+                    sample_rate
+                    * np.sum(window ** 2)
+                )
+            )
+
+            # Convert to one-sided PSD.
+            # rfft() only contains positive frequencies, so
+            # interior bins represent both positive and negative
+            # frequency components.
+            if n_fft % 2 == 0:
+                power[1:-1] *= 2.0
+            else:
+                power[1:] *= 2.0
 
             frames.append(power)
 
@@ -113,9 +122,9 @@ def analyze_energy_map(data, sample_rate):
         axis=0
     )
 
-    total_energy = float(
-        np.sum(total_power)
-    )
+    frequency_resolution_hz = sample_rate / n_fft
+
+    total_energy = float(np.sum(total_power)) * frequency_resolution_hz
 
     bands = {}
 
@@ -127,9 +136,8 @@ def analyze_energy_map(data, sample_rate):
         )
 
         band_power = total_power[band_mask]
-
         band_energy = float(
-            np.sum(band_power)
+            np.sum(band_power) * frequency_resolution_hz
         )
 
         bandwidth_hz = high_hz - low_hz
@@ -191,8 +199,9 @@ def analyze_energy_map(data, sample_rate):
         "bands": bands,
 
         "spectrum": {
-            "frequencies_hz": frequencies.tolist(),
-
+    "frequency_resolution_hz": float(frequency_resolution_hz),
+    "frequencies_hz": frequencies.tolist(),
+    
             "total_power": total_power.tolist(),
 
             "total_power_db": total_power_db.tolist(),
