@@ -7,6 +7,7 @@ from loudness_engine.dynamics import analyze_dynamics
 from loudness_engine.transients import analyze_transients
 from loudness_engine.frequency_dynamics import analyze_frequency_dynamics
 from loudness_engine.tonal_analysis import analyze_tonal_analysis
+from loudness_engine.unified_analysis import build_unified_analysis
 
 def analyze_file(file_path):
     """
@@ -54,17 +55,20 @@ def analyze_file(file_path):
     transients = analyze_transients(data, sample_rate)
     frequency_dynamics = analyze_frequency_dynamics(data, sample_rate)
     tonal_analysis = analyze_tonal_analysis(data, sample_rate)
-    return {
-        "file_path": str(file_path),
-        "sample_rate": int(sample_rate),
-        "channels": channels,
-        "duration_sec": round(duration_sec, 3),
-        "integrated_lufs": round(integrated_lufs, 3),
-        "loudness_range": round(loudness_range, 3),
-        "true_peak_db": round(true_peak_db, 3),
-        "energy_map": energy_map,
-        "dynamics": dynamics,
-        "transients": transients,
-        "frequency_dynamics": frequency_dynamics,
-        "tonal_analysis": tonal_analysis,
-    }
+
+    unified_analysis = build_unified_analysis(
+        file_path=file_path,
+        sample_rate=sample_rate,
+        channels=channels,
+        duration_sec=duration_sec,
+        integrated_lufs=integrated_lufs,
+        loudness_range=loudness_range,
+        true_peak_db=true_peak_db,
+        energy_map=energy_map,
+        dynamics=dynamics,
+        transients=transients,
+        frequency_dynamics=frequency_dynamics,
+        tonal_analysis=tonal_analysis,
+    )
+
+    return unified_analysis
