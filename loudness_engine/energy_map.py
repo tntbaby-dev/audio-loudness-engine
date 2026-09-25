@@ -96,6 +96,40 @@ def analyze_energy_map(data, sample_rate):
     # Preserve every channel.
     channel_spectra = np.asarray(channel_spectra)
 
+    # Stereo relationship analysis
+    left_power = channel_spectra[0] if channels >= 1 else None
+    right_power = channel_spectra[1] if channels >= 2 else None
+
+    stereo_analysis = {}
+
+    if channels >= 2:
+        stereo_sum = left_power + right_power
+
+        stereo_difference = np.abs(
+            left_power - right_power
+        )
+
+        stereo_balance = (
+            (left_power - right_power)
+            / np.maximum(stereo_sum, 1e-20)
+        )
+
+        stereo_correlation = (
+            np.sqrt(
+                np.maximum(left_power, 0.0)
+                * np.maximum(right_power, 0.0)
+            )
+            / np.maximum(stereo_sum, 1e-20)
+        )
+
+        stereo_analysis = {
+            "left_power": left_power.tolist(),
+            "right_power": right_power.tolist(),
+            "difference": stereo_difference.tolist(),
+            "balance": stereo_balance.tolist(),
+            "correlation": stereo_correlation.tolist(),
+        }
+
     frequencies = np.fft.rfftfreq(
         n_fft,
         d=1.0 / sample_rate
@@ -177,35 +211,27 @@ def analyze_energy_map(data, sample_rate):
         )
 
         channel_power_output[channel_name] = {
-            "power": power.tolist(),
-            "power_db": (
-                10.0
-                * np.log10(
-                    np.maximum(power, 1e-20)
-                )
-            ).tolist(),
-        }
+    "power": power.tolist(),
+    "power_db": (
+        10.0 * np.log10(
+            np.maximum(power, 1e-20)
+        )
+    ).tolist(),
+}
 
     total_power_db = (
-        10.0
-        * np.log10(
-            np.maximum(total_power, 1e-20)
-        )
+        10.0 * np.log10(np.maximum(total_power, 1e-20))
     )
 
     return {
         "channels": channels,
-
         "bands": bands,
-
         "spectrum": {
-    "frequency_resolution_hz": float(frequency_resolution_hz),
-    "frequencies_hz": frequencies.tolist(),
-    
+            "frequency_resolution_hz": float(frequency_resolution_hz),
+            "frequencies_hz": frequencies.tolist(),
             "total_power": total_power.tolist(),
-
             "total_power_db": total_power_db.tolist(),
-
             "channels": channel_power_output,
         },
+        "stereo_analysis": stereo_analysis,
     }
