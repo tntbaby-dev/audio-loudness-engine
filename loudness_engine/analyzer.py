@@ -5,6 +5,7 @@ from .true_peak import measure_true_peak
 from .energy_map import analyze_energy_map
 from loudness_engine.dynamics import analyze_dynamics
 from loudness_engine.transients import analyze_transients
+from loudness_engine.frequency_dynamics import analyze_frequency_dynamics
 
 def analyze_file(file_path):
     """
@@ -50,7 +51,7 @@ def analyze_file(file_path):
         sample_rate
     )
     transients = analyze_transients(data, sample_rate)
-
+    frequency_dynamics = analyze_frequency_dynamics(data, sample_rate)
     return {
         "file_path": str(file_path),
         "sample_rate": int(sample_rate),
@@ -62,4 +63,5 @@ def analyze_file(file_path):
         "energy_map": energy_map,
         "dynamics": dynamics,
         "transients": transients,
+        "frequency_dynamics": frequency_dynamics,
     }
