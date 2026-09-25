@@ -100,6 +100,97 @@ def analyze_energy_map(data, sample_rate):
         d=1.0 / sample_rate
     )
 
+    # ---------------------------------------------------------
+    # TRUE MID/SIDE SPECTRAL ANALYSIS
+    # ---------------------------------------------------------
+    #
+    # M/S must be calculated from the complex FFT signals,
+    # before converting them to power.
+    #
+    # M = (L + R) / sqrt(2)
+    # S = (L - R) / sqrt(2)
+    #
+    # This is an orthonormal transform and preserves total
+    # stereo energy.
+
+    mid_power = None
+    side_power = None
+
+    if channels >= 2:
+
+        mid_frames = []
+        side_frames = []
+
+        left_channel = data[:, 0]
+        right_channel = data[:, 1]
+
+        for start in range(
+            0,
+            samples - n_fft + 1,
+            hop_size
+        ):
+
+            left_frame = (
+                left_channel[start:start + n_fft]
+                * window
+            )
+
+            right_frame = (
+                right_channel[start:start + n_fft]
+                * window
+            )
+
+            left_fft = np.fft.rfft(left_frame)
+            right_fft = np.fft.rfft(right_frame)
+
+            mid_fft = (
+                left_fft + right_fft
+            ) / np.sqrt(2.0)
+
+            side_fft = (
+                left_fft - right_fft
+            ) / np.sqrt(2.0)
+
+            mid_frame_power = (
+                np.abs(mid_fft) ** 2
+                / (
+                    sample_rate
+                    * np.sum(window ** 2)
+                )
+            )
+
+            side_frame_power = (
+                np.abs(side_fft) ** 2
+                / (
+                    sample_rate
+                    * np.sum(window ** 2)
+                )
+            )
+
+            # Convert to one-sided PSD.
+            if n_fft % 2 == 0:
+
+                mid_frame_power[1:-1] *= 2.0
+                side_frame_power[1:-1] *= 2.0
+
+            else:
+
+                mid_frame_power[1:] *= 2.0
+                side_frame_power[1:] *= 2.0
+
+            mid_frames.append(mid_frame_power)
+            side_frames.append(side_frame_power)
+
+        mid_power = np.mean(
+            np.asarray(mid_frames),
+            axis=0
+        )
+
+        side_power = np.mean(
+            np.asarray(side_frames),
+            axis=0
+        )
+
     # Keep the audible analysis range.
     frequency_mask = (
         (frequencies >= 20) &
@@ -112,6 +203,10 @@ def analyze_energy_map(data, sample_rate):
         :,
         frequency_mask
     ]
+
+    if channels >= 2:
+        mid_power = mid_power[frequency_mask]
+        side_power = side_power[frequency_mask]
 
     # Preserve channel-specific spectral information
     # after applying the same frequency mask.
@@ -145,7 +240,7 @@ def analyze_energy_map(data, sample_rate):
         * frequency_resolution_hz
     )
 
-    # ---------------------------------------------------------
+       # ---------------------------------------------------------
     # STEREO SPECTRUM ANALYSIS
     # ---------------------------------------------------------
 
@@ -169,6 +264,8 @@ def analyze_energy_map(data, sample_rate):
             "right_power": right_power.tolist(),
             "difference": stereo_difference.tolist(),
             "balance": stereo_balance.tolist(),
+            "mid_power": mid_power.tolist(),
+            "side_power": side_power.tolist(),
         }
 
     # ---------------------------------------------------------
